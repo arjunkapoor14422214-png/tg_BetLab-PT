@@ -1,4 +1,4 @@
-﻿from dotenv import load_dotenv
+from dotenv import load_dotenv
 import os
 import asyncio
 import json
@@ -87,19 +87,12 @@ BOOKMAKER_LINK_LINES = [
 
 FALLBACK_BOOKMAKER_NAME = "LuckyPari"
 FALLBACK_BOOKMAKER_URL = BUTTON1_URL or "https://lckypr.com/G4DtDxQ"
+PRIMARY_BUTTON_LINK = (BUTTON1_TEXT, BUTTON1_URL)
 
-BUTTON_LINKS = [
-    (BUTTON1_TEXT, BUTTON1_URL),
-    (BUTTON2_TEXT, BUTTON2_URL),
-    (BUTTON3_TEXT, BUTTON3_URL),
-    (BUTTON4_TEXT, BUTTON4_URL),
-]
+BUTTON_LINKS = [PRIMARY_BUTTON_LINK]
 
 PARTNER_LINE_TOKENS = [
     ("[[PARTNER1]]", BUTTON1_TEXT, BUTTON1_URL),
-    ("[[PARTNER2]]", BUTTON2_TEXT, BUTTON2_URL),
-    ("[[PARTNER3]]", BUTTON3_TEXT, BUTTON3_URL),
-    ("[[PARTNER4]]", BUTTON4_TEXT, BUTTON4_URL),
 ]
 
 TOKEN_ONLY_LINES = {token for token, _, _ in TEXT_LINK_TOKENS}
@@ -267,7 +260,7 @@ def add_album_footer(text):
     return f"{body}\n\n{ALBUM_LINK_TOKEN}".strip()
 
 
-BOOKMAKER_KEYWORDS = (
+FOREIGN_BOOKMAKER_KEYWORDS = (
     "1xbet",
     "dbbet",
     "betkom",
@@ -285,11 +278,22 @@ BOOKMAKER_KEYWORDS = (
     "olimp",
     "marathon",
     "betboom",
+    "granawin",
+    "granawip",
+    "grana win",
+)
+
+BOOKMAKER_KEYWORDS = FOREIGN_BOOKMAKER_KEYWORDS + (
     "luckypa",
     "luckypari",
     "ultrapari",
     "winwin",
     "linebet",
+)
+
+FOREIGN_BOOKMAKER_PATTERN = re.compile(
+    r"\b(?:1xbet|dbbet|betkom|melbet|mostbet|fonbet|parimatch|pari[\s-]?match|betwinner|pin[\s-]?up|winline|leon|olimp|marathon|betboom|granawin|granawip|grana\s+win)\b",
+    re.IGNORECASE,
 )
 
 PARTNER_HINT_KEYWORDS = (
@@ -350,6 +354,25 @@ def has_partner_hint(line):
     return has_brand or (has_link and has_hint)
 
 
+def replace_foreign_bookmaker_mentions(text):
+    return FOREIGN_BOOKMAKER_PATTERN.sub(FALLBACK_BOOKMAKER_NAME, text or "")
+
+
+def sanitize_partner_line(line):
+    cleaned_line = replace_foreign_bookmaker_mentions(line)
+    cleaned_line = URL_PATTERN.sub("", cleaned_line)
+    cleaned_line = HANDLE_PATTERN.sub("", cleaned_line)
+    cleaned_line = re.sub(r"[ \t]{2,}", " ", cleaned_line)
+    cleaned_line = cleaned_line.strip(" -–—|•·")
+
+    if not cleaned_line:
+        return ""
+    if STANDALONE_CODE_PATTERN.fullmatch(cleaned_line):
+        return ""
+
+    return cleaned_line
+
+
 def collapse_blank_lines(lines):
     collapsed = []
 
@@ -387,6 +410,9 @@ def remove_foreign_links_and_contacts(text):
             continue
 
         if has_partner_hint(line):
+            partner_line = sanitize_partner_line(line)
+            if partner_line:
+                cleaned_lines.append(partner_line)
             continue
 
         had_link_or_handle = bool(URL_PATTERN.search(line) or HANDLE_PATTERN.search(line))
@@ -410,6 +436,7 @@ def normalize_post_text(text):
     body = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", body)
     body = re.sub(r"\s*```$", "", body)
     body = remove_foreign_links_and_contacts(body)
+    body = replace_foreign_bookmaker_mentions(body)
     body = re.sub(r"[ \t]{2,}", " ", body)
     body = re.sub(r"\n{3,}", "\n\n", body)
     return body.strip()
@@ -439,6 +466,9 @@ def add_partner_lines(text):
         return body
 
     if any(token in body for token in partner_tokens):
+        return body
+
+    if FALLBACK_BOOKMAKER_NAME.lower() in body.lower():
         return body
 
     partner_block = "\n".join(partner_tokens)
