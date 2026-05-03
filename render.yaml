@@ -1,8 +1,9 @@
 services:
   - type: worker
     name: betlab-portugal-bot
-    env: python
-    plan: free
+    runtime: python
+    plan: starter
+    region: frankfurt
     autoDeploy: true
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
