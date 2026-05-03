@@ -1,0 +1,33 @@
+services:
+  - type: worker
+    name: betlab-portugal-bot
+    env: python
+    plan: free
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: SOURCE_CHANNEL
+        sync: false
+      - key: TARGET_CHANNEL
+        sync: false
+      - key: TG_API_ID
+        sync: false
+      - key: TG_API_HASH
+        sync: false
+      - key: TG_SESSION_STRING
+        sync: false
+      - key: AI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: AI_ENABLED
+        value: "true"
+      - key: AI_MODEL
+        value: "gpt-4.1-mini"
+      - key: AI_TARGET_LANG
+        value: "portuguese"
+      - key: PROMOCODE_TEXT
+        value: "Codigo promocional: NILE"
