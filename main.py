@@ -77,6 +77,7 @@ TEXT_LINK_TOKENS = [
 
 ALBUM_LINK_TOKEN = "[[ALBUM_APK]]"
 ALBUM_LINK_LABEL = "🎮APK ANDROID"
+BOOKMAKER_NAME_TOKEN = "[[BOOKMAKER_NAME]]"
 
 BOOKMAKER_LINK_LINES = [
     ("luckypa", "LuckyPari", BUTTON1_URL or "https://lckypr.com/G4DtDxQ"),
@@ -98,6 +99,7 @@ PARTNER_LINE_TOKENS = [
 TOKEN_ONLY_LINES = {token for token, _, _ in TEXT_LINK_TOKENS}
 TOKEN_ONLY_LINES.update({token for token, _, _ in PARTNER_LINE_TOKENS})
 TOKEN_ONLY_LINES.add(ALBUM_LINK_TOKEN)
+TOKEN_ONLY_LINES.add(BOOKMAKER_NAME_TOKEN)
 URL_PATTERN = re.compile(r"(?:https?://|www\.|t\.me/|telegram\.me/)\S+", re.IGNORECASE)
 HANDLE_PATTERN = re.compile(r"(?<!\w)@[\w\d_]{3,}")
 STANDALONE_CODE_PATTERN = re.compile(r"^[A-Z0-9]{5,8}$")
@@ -210,6 +212,10 @@ def prepare_telegram_text(text, limit=None):
     safe_text = safe_text.replace(
         escape(ALBUM_LINK_TOKEN),
         f'<a href="{escape(ALBUM_CHANNEL_URL, quote=True)}">{escape(ALBUM_LINK_LABEL)}</a>',
+    )
+    safe_text = safe_text.replace(
+        escape(BOOKMAKER_NAME_TOKEN),
+        f'<a href="{escape(FALLBACK_BOOKMAKER_URL, quote=True)}">{escape(FALLBACK_BOOKMAKER_NAME)}</a>',
     )
 
     for token, label, url in TEXT_LINK_TOKENS:
@@ -358,6 +364,11 @@ def replace_foreign_bookmaker_mentions(text):
     return FOREIGN_BOOKMAKER_PATTERN.sub(FALLBACK_BOOKMAKER_NAME, text or "")
 
 
+def link_fallback_bookmaker_mentions(text):
+    pattern = re.compile(r"(?i)\bluckypa(?:ri)?\b")
+    return pattern.sub(BOOKMAKER_NAME_TOKEN, text or "")
+
+
 def sanitize_partner_line(line):
     cleaned_line = replace_foreign_bookmaker_mentions(line)
     cleaned_line = URL_PATTERN.sub("", cleaned_line)
@@ -468,6 +479,9 @@ def add_partner_lines(text):
     if any(token in body for token in partner_tokens):
         return body
 
+    if BOOKMAKER_NAME_TOKEN in body:
+        return body
+
     if FALLBACK_BOOKMAKER_NAME.lower() in body.lower():
         return body
 
@@ -519,6 +533,7 @@ def finalize_post_text(text, is_album=False, include_partner_lines=False):
     body = normalize_post_text(text)
 
     body = apply_promocode_rule(body, force=include_partner_lines)
+    body = link_fallback_bookmaker_mentions(body)
     if is_album:
         body = add_album_footer(body)
     if include_partner_lines:
