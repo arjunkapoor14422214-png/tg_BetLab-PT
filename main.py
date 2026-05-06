@@ -298,8 +298,11 @@ BOOKMAKER_KEYWORDS = FOREIGN_BOOKMAKER_KEYWORDS + (
 )
 
 FOREIGN_BOOKMAKER_PATTERN = re.compile(
-    r"\b(?:1xbet|dbbet|betkom|melbet|mostbet|fonbet|parimatch|pari[\s-]?match|betwinner|pin[\s-]?up|winline|leon|olimp|marathon|betboom|granawin|granawip|grana\s+win)\b",
+    r"\b(?:1xbet|1win|dbbet|betkom|melbet|mostbet|fonbet|parimatch|pari[\s-]?match|betwinner|pin[\s-]?up|winline|leon|olimp|marathon|betboom|granawin|granawip|grana\s+win|coldbet)\b",
     re.IGNORECASE,
+)
+GENERIC_FOREIGN_BOOKMAKER_PATTERN = re.compile(
+    r"(?i)\b(?!lucky[\s-]?pari\b|ultrapari\b|winwin\b|linebet\b)[a-z0-9_-]{3,}(?:bet|pari)\b"
 )
 
 PARTNER_HINT_KEYWORDS = (
@@ -356,16 +359,29 @@ def has_partner_hint(line):
 
     has_link = bool(URL_PATTERN.search(line) or HANDLE_PATTERN.search(line))
     has_brand = any(keyword in lowered for keyword in BOOKMAKER_KEYWORDS)
+    has_generic_brand = bool(GENERIC_FOREIGN_BOOKMAKER_PATTERN.search(line or ""))
     has_hint = any(keyword in lowered for keyword in PARTNER_HINT_KEYWORDS)
-    return has_brand or (has_link and has_hint)
+    return has_brand or has_generic_brand or (has_link and has_hint)
 
 
 def replace_foreign_bookmaker_mentions(text):
-    return FOREIGN_BOOKMAKER_PATTERN.sub(FALLBACK_BOOKMAKER_NAME, text or "")
+    if not text:
+        return ""
+
+    replaced_text = FOREIGN_BOOKMAKER_PATTERN.sub(FALLBACK_BOOKMAKER_NAME, text)
+    replaced_lines = []
+
+    for raw_line in replaced_text.splitlines():
+        line = raw_line
+        if GENERIC_FOREIGN_BOOKMAKER_PATTERN.search(line):
+            line = GENERIC_FOREIGN_BOOKMAKER_PATTERN.sub(FALLBACK_BOOKMAKER_NAME, line)
+        replaced_lines.append(line)
+
+    return "\n".join(replaced_lines)
 
 
 def link_fallback_bookmaker_mentions(text):
-    pattern = re.compile(r"(?i)\bluckypa(?:ri)?\b")
+    pattern = re.compile(r"(?i)\blucky(?:pa(?:ri)?|[\s-]?pari)\b")
     return pattern.sub(BOOKMAKER_NAME_TOKEN, text or "")
 
 
@@ -492,8 +508,16 @@ def add_partner_lines(text):
     return f"{body}\n\n{partner_block}".strip()
 
 
-def should_attach_buttons(include_partner_lines):
-    return bool(build_reply_markup()) and not include_partner_lines
+def should_attach_buttons(text, include_partner_lines):
+    if not build_reply_markup():
+        return False
+    if include_partner_lines:
+        return False
+    if BOOKMAKER_NAME_TOKEN in (text or ""):
+        return False
+    if FALLBACK_BOOKMAKER_NAME.lower() in (text or "").lower():
+        return False
+    return True
 
 
 def build_final_post_text(post_data, use_ai=True):
@@ -508,7 +532,7 @@ def build_final_post_text(post_data, use_ai=True):
         include_partner_lines=include_partner_lines,
     )
     final_text = add_thematic_emojis(final_text)
-    return final_text, should_attach_buttons(include_partner_lines)
+    return final_text, should_attach_buttons(final_text, include_partner_lines)
 
 
 def apply_promocode_rule(text, force=False):
